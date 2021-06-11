@@ -1,0 +1,72 @@
+library(naniar)
+library(tidyverse)
+library(mice)
+library(ggplot2)
+
+## Read in data
+beer = read_csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%208%20and%209%20Case%20Study%201/Beers.csv") 
+breweries = read.csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%208%20and%209%20Case%20Study%201/Breweries.csv")
+summary(beer)
+summary(breweries)
+
+## Set correct variable type
+breweries$State = as.factor(breweries$State)
+
+## Plot for brewery amount by state (Part 1)
+breweries %>% ggplot(aes(x=State)) + geom_bar() + ggtitle("Breweries by State")
+breweries %>% ggplot(aes(x=reorder(State, State, function(x) -length(x)))) + geom_bar() + ggtitle("Breweries by State")
+
+## Merge both data frames (Part 2)
+beer_comp = merge(beer, breweries, by.x = "Brewery_id", by.y = "Brew_ID")
+
+## Change column names
+colnames(beer_comp)[which(names(beer_comp) == "Name.x")] <- "Beer_Name"
+colnames(beer_comp)[which(names(beer_comp) == "Name.y")] <- "Brewery_Name"
+colnames(beer_comp)[which(names(beer_comp) == "Brewery_id")] <- "Brewery_ID"
+
+## Graph missing values
+gg_miss_var(beer_comp)
+
+## Impute missing data using the Mice Function (Part 3)
+imp_beer_comp = mice(beer_comp, maxit = 20)
+imp_beer_comp = complete(imp_beer_comp)
+gg_miss_var(imp_beer_comp)
+head(imp_beer_comp, n=10)
+tail(imp_beer_comp, n=10)
+
+## Plot mean ABV by state (Part 4)
+State_ABV = aggregate(x = imp_beer_comp$ABV,                # Specify data column
+          by = list(imp_beer_comp$State),              # Specify group indicator
+          FUN = median)
+colnames(State_ABV)[which(names(State_ABV) == "x")] <- "Median_ABV"
+colnames(State_ABV)[which(names(State_ABV) == "Group.1")] <- "State"
+State_ABV %>% ggplot(aes(x=reorder(State, -Median_ABV), y=Median_ABV, color=State)) + geom_col()
+
+
+a = which.max(State_ABV$Median_ABV)
+State_ABV[a,]
+b = which.min(State_ABV$Median_ABV)
+State_ABV[b,]
+
+## Highest ABV and IBU (Part 5)
+imp_beer_comp %>% summarise_if(is.numeric, max)
+c = which.max(imp_beer_comp$ABV)
+imp_beer_comp[c,]
+d = which.max(imp_beer_comp$IBU)
+imp_beer_comp[d,]
+
+imp_beer_comp %>% summarise_if(is.numeric, min)
+e = which.min(imp_beer_comp$ABV)
+imp_beer_comp[c,]
+f = which.min(imp_beer_comp$IBU)
+imp_beer_comp[d,]
+
+## Summary of ABV (Part 6)
+summary(imp_beer_comp$ABV)
+imp_beer_comp %>% ggplot(aes(x=ABV, color=State)) + geom_histogram() + facet_wrap(~State) + ggtitle("ABV Distribution by State")
+imp_beer_comp %>% ggplot(aes(x=State, y=ABV, color=State)) + geom_boxplot() + ggtitle("ABV Distribution by State")
+
+## Relationship between ABV and IBU (Part 7)
+imp_beer_comp %>% ggplot(aes(x=ABV, y=IBU, color=State)) + geom_point() + ggtitle("ABV vs IBU")
+
+## (Part 8)
