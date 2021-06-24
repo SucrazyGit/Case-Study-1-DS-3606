@@ -2,6 +2,10 @@ library(naniar)
 library(tidyverse)
 library(mice)
 library(ggplot2)
+library(htmlwidgets)
+library(caTools)
+library(class)
+library(caret)
 
 ## Read in data
 beer = read_csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%208%20and%209%20Case%20Study%201/Beers.csv") 
@@ -13,8 +17,8 @@ summary(breweries)
 breweries$State = as.factor(breweries$State)
 
 ## Plot for brewery amount by state (Part 1)
-breweries %>% ggplot(aes(x=State)) + geom_bar() + ggtitle("Breweries by State")
-breweries %>% ggplot(aes(x=reorder(State, State, function(x) -length(x)))) + geom_bar() + ggtitle("Breweries by State")
+breweries %>% ggplot(aes(x=reorder(State, State, function(x) -length(x)))) + geom_bar() + ggtitle("Breweries by State") + xlab("States")
+co_brew = breweries %>% filter(State == "CO")
 
 ## Merge both data frames (Part 2)
 beer_comp = merge(beer, breweries, by.x = "Brewery_id", by.y = "Brew_ID")
@@ -28,19 +32,31 @@ colnames(beer_comp)[which(names(beer_comp) == "Brewery_id")] <- "Brewery_ID"
 gg_miss_var(beer_comp)
 
 ## Impute missing data using the Mice Function (Part 3)
-imp_beer_comp = mice(beer_comp, maxit = 20)
-imp_beer_comp = complete(imp_beer_comp)
+## imp_beer_comp = mice(beer_comp, maxit = 20)
+## imp_beer_comp = complete(imp_beer_comp, 3)
+imp_beer_comp = beer_comp
 gg_miss_var(imp_beer_comp)
 head(imp_beer_comp, n=10)
 tail(imp_beer_comp, n=10)
 
 ## Plot mean ABV by state (Part 4)
-State_ABV = aggregate(x = imp_beer_comp$ABV,                # Specify data column
-          by = list(imp_beer_comp$State),              # Specify group indicator
+State_ABV = imp_beer_comp %>% filter(!is.na(imp_beer_comp$ABV))
+
+State_ABV = aggregate(x = State_ABV$ABV,                # Specify data column
+          by = list(State_ABV$State),              # Specify group indicator
           FUN = median)
 colnames(State_ABV)[which(names(State_ABV) == "x")] <- "Median_ABV"
 colnames(State_ABV)[which(names(State_ABV) == "Group.1")] <- "State"
-State_ABV %>% ggplot(aes(x=reorder(State, -Median_ABV), y=Median_ABV, color=State)) + geom_col()
+
+State_ABV = State_ABV %>%
+  group_by(State) %>%
+  summarise(Median = median(ABV)) %>%
+  arrange(Median)
+
+
+State_ABV[is.na(State_ABV)] = 0
+State_ABV %>% ggplot(aes(x=reorder(State, -Median_ABV), y=Median_ABV, color=State)) + 
+  geom_col() + ggtitle("Median ABV by State") + xlab("State") + ylab("Median ABV")
 
 
 a = which.max(State_ABV$Median_ABV)
@@ -64,9 +80,32 @@ imp_beer_comp[d,]
 ## Summary of ABV (Part 6)
 summary(imp_beer_comp$ABV)
 imp_beer_comp %>% ggplot(aes(x=ABV, color=State)) + geom_histogram() + facet_wrap(~State) + ggtitle("ABV Distribution by State")
+imp_beer_comp %>% ggplot(aes(x=ABV, color=State)) + geom_histogram() + ggtitle("ABV Distribution")
 imp_beer_comp %>% ggplot(aes(x=State, y=ABV, color=State)) + geom_boxplot() + ggtitle("ABV Distribution by State")
 
 ## Relationship between ABV and IBU (Part 7)
 imp_beer_comp %>% ggplot(aes(x=ABV, y=IBU, color=State)) + geom_point() + ggtitle("ABV vs IBU")
 
 ## (Part 8)
+## Creates a data set of just IPA and Ale beers
+IPA_Beer = imp_beer_comp %>% filter(str_detect(imp_beer_comp$Style, "IPA"))
+IPA_Beer$Style = "IPA"
+Ale_Beer = imp_beer_comp %>% filter(str_detect(imp_beer_comp$Style, "Ale"))
+Ale_Beer$Style = "Ale"
+IPA_Ale_Beer = rbind(IPA_Beer, Ale_Beer)
+IPA_Ale_Beer = na.omit(IPA_Ale_Beer)
+
+## Plots IPA and Ale data set
+IPA_Ale_Beer %>% ggplot(aes(x=ABV, y=IBU, color=Style)) + geom_point() + ggtitle("ABV vs IBU")
+
+## Splits the data into training and test set
+set.seed(102) 
+sample = sample.split(IPA_Ale_Beer[,1], SplitRatio = .75)
+beer_train = subset(IPA_Ale_Beer, sample == TRUE)
+beer_test  = subset(IPA_Ale_Beer, sample == FALSE)
+
+## KNN Prediction model and confusion matrix
+v1 = beer_train[,6]
+pred = knn(beer_train[,4:5], beer_test[,4:5], v1, k=3, prob = TRUE)
+actual = beer_test$Style
+confusionMatrix(pred,as.factor(actual))
