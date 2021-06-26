@@ -2,25 +2,11 @@
 title: 'DS 3606 :: Case Study 1'
 author: "Brandon Sucrese"
 date: "6/25/2021"
-output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-```{r}
-``` 
-## R Markdown
+Introduction: Welcome to the brewery and beer analysis. The following code will walk through important discovers about beer. We will be looking at quantity of breweries and the distribution of beers' alcohol content. We will also explore the relationship between alcohol content and bitterness as well as how the style of beer effects these variables. Lastly we will look into which states have the highest different in alcohol among their beers. Understanding how beer works and it's finer details, always us to better understand beers in the future.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
-
-
-Introduction: 
-
-
-Code Summary: Reads in any necessary libraries.
+Code Summary: Reads in necessary libraries.
 ```{r}
 library(naniar)
 library(tidyverse)
