@@ -1,0 +1,151 @@
+---
+title: 'DS 3606 :: Case Study 1'
+author: "Brandon Sucrese"
+date: "6/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+``` 
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+
+
+Introduction: 
+
+
+Code Summary: Reads in any necessary libraries.
+```{r}
+library(naniar)
+library(tidyverse)
+library(mice)
+library(ggplot2)
+library(htmlwidgets)
+library(caTools)
+library(class)
+library(caret)
+library(stats)
+library(dplyr)
+library(agricolae)
+```
+
+Code Summary: Reads in the beer and breweries data sets. Sets the variables to the correct type and summaries the two data sets.
+```{r}
+beer = read_csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%208%20and%209%20Case%20Study%201/Beers.csv") 
+breweries = read.csv("https://raw.githubusercontent.com/BivinSadler/MSDS_6306_Doing-Data-Science/Master/Unit%208%20and%209%20Case%20Study%201/Breweries.csv")
+breweries$State = as.factor(breweries$State)  ## Sets the state variable to a factor
+summary(beer) ## Summarizes the beer data set
+summary(breweries) ## Summarizes the breweries data set
+```
+
+Code Summary: Plots the amount of breweries in each State.
+```{r}
+breweries %>% ggplot(aes(x=reorder(State, State, function(x) -length(x)))) + geom_bar() + ggtitle("Breweries by State") + xlab("States")
+```
+
+Code Summary: Merges the beer and breweries data set together and relabels the data set.
+```{r}
+beer_comp = merge(beer, breweries, by.x = "Brewery_id", by.y = "Brew_ID")  ## Merges the beer and breweries data sets
+colnames(beer_comp)[which(names(beer_comp) == "Name.x")] <- "Beer_Name"  ## Renames column to Beer_Name
+colnames(beer_comp)[which(names(beer_comp) == "Name.y")] <- "Brewery_Name"  ## Renames column to Brewery_Name
+colnames(beer_comp)[which(names(beer_comp) == "Brewery_id")] <- "Brewery_ID"  ## Renames column to Brewery_ID
+```
+
+Code Summary: Graphs missing data and shows first and last observations in the full beer data set.
+```{r}
+imp_beer_comp = beer_comp  ## Changes beer_comp to imp_beer_comp
+gg_miss_var(imp_beer_comp)  ## Graphs missing values by variable
+head(imp_beer_comp, n=10)  ## Displays first 10 observations
+tail(imp_beer_comp, n=10)  ## Displays last 10 observations
+```
+
+Code Summary: Creates a new data set of Median ABV by state. Graphs and summarize this data set.
+```{r}
+State_ABV = imp_beer_comp %>% filter(!is.na(imp_beer_comp$ABV))  ## Filters out any rows with missing values for ABV
+
+State_ABV = aggregate(x = State_ABV$ABV,  ## Creates data set of all the states and their corresponding median ABV values
+          by = list(State_ABV$State),
+          FUN = median)
+
+colnames(State_ABV)[which(names(State_ABV) == "x")] <- "Median_ABV"  ## Renames column to Median_ABV
+colnames(State_ABV)[which(names(State_ABV) == "Group.1")] <- "State"  ## Renames column to State
+
+State_ABV %>% ggplot(aes(x=reorder(State, -Median_ABV), y=Median_ABV, color=State)) +  ## Graphs Median ABV by State in order
+  geom_col() + ggtitle("Median ABV by State") + xlab("State") + ylab("Median ABV")  
+
+a = which.max(State_ABV$Median_ABV)  ## Finds and displays the state with the greatest median ABV
+State_ABV[a,]
+b = which.min(State_ABV$Median_ABV)  ## Finds and displays the state with the lowest median ABV
+State_ABV[b,]
+```
+
+Code Summary: Finds and displays the beer with highest ABV and IBU values. Also finds and displays the beer with the lowest ABV and IBU values.
+```{r}
+c = which.max(imp_beer_comp$ABV)  ## Finds and displays beer with the highest ABV value
+imp_beer_comp[c,]
+d = which.max(imp_beer_comp$IBU)  ## Finds and displays beer with the highest IBU value
+imp_beer_comp[d,]
+
+e = which.min(imp_beer_comp$ABV)  ## Finds and displays beer with the lowest ABV value
+imp_beer_comp[c,]
+f = which.min(imp_beer_comp$IBU)  ## Finds and displays beer with the lowest IBU value
+imp_beer_comp[d,]
+```
+
+Code Summary: Summarizes the ABV value and plots ABV distribution by state.
+```{r}
+summary(imp_beer_comp$ABV)  ## Summarizes ABV data
+imp_beer_comp %>% ggplot(aes(x=ABV, color=State)) + geom_histogram() + ggtitle("ABV Distribution") ## Histogram plot of ABV distribution
+imp_beer_comp %>% ggplot(aes(x=ABV, color=State)) + geom_histogram() +  ## Histogram plot of ABV distribution by state histogram
+  facet_wrap(~State) + ggtitle("ABV Distribution by State")
+imp_beer_comp %>% ggplot(aes(x=State, y=ABV, color=State)) + geom_boxplot() + ggtitle("ABV Distribution by State")  ## Boxplot of ABV distribution by state
+```
+
+Code Summary: Plots the relationship between ABV and IBU
+```{r}
+imp_beer_comp %>% ggplot(aes(x=ABV, y=IBU, color=State)) + geom_point() + ggtitle("ABV vs IBU")  ## Scatter plot comparing ABV and IBU (Points colored by state)
+imp_beer_comp %>% ggplot(aes(x=ABV, y=IBU)) + geom_point() + ggtitle("ABV vs IBU") + geom_smooth(method = "lm") ## Scatter plot comparing ABV and IBU with a linear regression line
+```
+
+Code Summary: Creates a data set of just IPA and Ale style of beers and plots this new data.
+```{r}
+IPA_Beer = imp_beer_comp %>% filter(str_detect(imp_beer_comp$Style, "IPA"))  ## Creates data set of just IPA beers
+IPA_Beer$Style = "IPA"
+Ale_Beer = imp_beer_comp %>% filter(str_detect(imp_beer_comp$Style, "Ale"))  ## Creates data set of just Ale beers
+Ale_Beer$Style = "Ale"
+IPA_Ale_Beer = rbind(IPA_Beer, Ale_Beer)  ## Combines the IPA and Ale beer data sets together
+IPA_Ale_Beer = na.omit(IPA_Ale_Beer) ## Removes any missing values from the data set
+
+IPA_Ale_Beer %>% ggplot(aes(x=ABV, y=IBU, color=Style)) + geom_point() + ggtitle("ABV vs IBU") ## Scatter plot of IBU and ABV, style of Beers are colored
+```
+
+Code Summary: Splits the data into a training and test set. Runs a KNN classification model on the IPA and Ale beer data set.
+```{r}
+set.seed(1)  ## Sets the seed
+sample = sample.split(IPA_Ale_Beer[,1], SplitRatio = .70)  ## Splits the data using 30/70 ratio
+beer_train = subset(IPA_Ale_Beer, sample == TRUE)  ## Creates training set
+beer_test  = subset(IPA_Ale_Beer, sample == FALSE)  ## Creates test set
+
+v1 = beer_train[,6]  ## Creates classifiers references of IBA and IBU
+pred = knn(beer_train[,c('ABV', 'IBU')], beer_test[,c('ABV', 'IBU')], v1, k=2, prob = TRUE)  ## Creates data set of predictions using the KNN model for the style of beers (IPA vs Ale)
+actual = beer_test$Style  ## Creates data set of the actual style of the beers
+confusionMatrix(pred,as.factor(actual))  ## Creates a confusion matrix of the predicted and actual style of the beers
+```
+
+Code Summary: Runs an ANOVA and Tukey test to determine which States have significant difference in ABV.
+```{r}
+anova_beer = imp_beer_comp %>% filter(!is.na(imp_beer_comp$ABV))  ## Filters out all NA values in ABV
+anova_results = aov(ABV ~ State, data = anova_beer)  ## ANOVA test for ABV between all States
+summary(anova_results)  ## Summarizes the ANOVA results (results are significant)
+
+HSD_results<-HSD.test(anova_results,"State", group=FALSE)  ## Runs Tukey pairwise comparison test
+state_comparison = HSD_results$comparison  ## Makes data set related to comparisons including pvalues
+sign_comp = filter(state_comparison, pvalue <= .05)  ## Makes data set of only comparison at are significant (pvalues <= 0.5)
+print(sign_comp)  ## Prints all significant comparisons
+```
